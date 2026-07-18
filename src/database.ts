@@ -54,6 +54,7 @@ export class WhoopDatabase {
 		this.db = new Database(dbPath);
 		this.db.pragma('journal_mode = WAL');
 		this.initSchema();
+		        this.migrateJournalColumns();
 	}
 
 	private initSchema(): void {
@@ -186,6 +187,33 @@ INSERT OR IGNORE INTO sync_state (id) VALUES (1);
 		`);
 	}
 
+private migrateJournalColumns(): void {
+	    const columns: [string, string][] = [
+			        ['alcohol_last_time', 'TEXT'],
+			        ['caffeine_last_time', 'TEXT'],
+			        ['sauna', 'INTEGER'],
+			        ['cold_exposure', 'INTEGER'],
+			        ['late_meal', 'INTEGER'],
+			        ['screen_time', 'INTEGER'],
+			        ['meditation', 'INTEGER'],
+			        ['stretching', 'INTEGER'],
+			        ['nap', 'INTEGER'],
+			        ['sick', 'INTEGER'],
+			        ['travel', 'INTEGER'],
+			    ];
+	    for (const [name, type] of columns) {
+			        try {
+						            this.db.exec(`ALTER TABLE journal ADD COLUMN ${name} ${type}`);
+					} catch (e) {
+						            // column already exists, ignore
+					}
+		}
+	    this.db.exec(`
+		        INSERT OR IGNORE INTO journal_settings (id, enabled_fields)
+				        VALUES ('default', '["alcohol","caffeine","sauna","cold_exposure","late_meal","screen_time","meditation","stretching","nap","sick","travel"]')
+						    `);
+}
+	
 	saveTokens(tokens: WhoopTokens): void {
 		const encryptedAccess = encrypt(tokens.access_token);
 		const encryptedRefresh = encrypt(tokens.refresh_token);
