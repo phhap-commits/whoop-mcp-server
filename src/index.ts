@@ -1,3 +1,4 @@
+
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
@@ -79,6 +80,18 @@ function getStrainZone(strain: number): string {
 	return 'Light (0-9)';
 }
 
+const SPORT_NAMES: Record<number, string> = {
+	0: 'Running', 1: 'Cycling', 18: 'Rowing', 33: 'Swimming', 39: 'Boxing',
+	44: 'Yoga', 45: 'Weightlifting', 48: 'Functional Fitness', 52: 'Hiking/Rucking',
+	56: 'Martial Arts', 59: 'Powerlifting', 63: 'Walking', 65: 'Elliptical',
+	84: 'Jumping Rope', 96: 'HIIT', 97: 'Spin', 123: 'Strength Trainer',
+	126: 'Assault Bike', 128: 'Stretching', -1: 'Activity',
+};
+
+function getSportName(sportId: number): string {
+	return SPORT_NAMES[sportId] ?? `Sport #${sportId}`;
+}
+
 function validateDays(value: unknown): number {
 	if (value === undefined || value === null) return 14;
 	const num = typeof value === 'number' ? value : Number.parseInt(String(value), 10);
@@ -142,6 +155,15 @@ function createMcpServer(): Server {
 				},
 			},
 			{
+				name: 'get_workouts',
+				description: 'Get individual workout sessions (sport type, duration, avg/max heart rate, calories, strain) for a date range. Useful for strength training sessions where the daily strain total alone is misleading.',
+				inputSchema: {
+					type: 'object',
+					properties: { days: { type: 'number', description: 'Number of days to look back (default: 14, max: 90)' } },
+					required: [],
+				},
+			},
+			{
 				name: 'get_auth_url',
 				description: 'Get the Whoop authorization URL to connect your account.',
 				inputSchema: { type: 'object', properties: {}, required: [] },
@@ -154,7 +176,7 @@ function createMcpServer(): Server {
 		const typedArgs = (args ?? {}) as ToolArguments;
 
 		try {
-			const dataTools = ['get_today', 'get_recovery_trends', 'get_sleep_analysis', 'get_strain_history'];
+			const dataTools = ['get_today', 'get_recovery_trends', 'get_sleep_analysis', 'get_strain_history', 'get_workouts'];
 			if (dataTools.includes(name)) {
 				const tokens = db.getTokens();
 				if (!tokens) {
@@ -278,6 +300,31 @@ function createMcpServer(): Server {
 					const avgCalories = trends.reduce((sum, d) => sum + (d.calories || 0), 0) / trends.length;
 
 					response += `\n## Averages\n- **Daily Strain**: ${avgStrain.toFixed(1)}\n- **Daily Calories**: ${Math.round(avgCalories)} kcal\n`;
+
+					return { content: [{ type: 'text', text: response }] };
+				}
+
+				case 'get_workouts': {
+					const days = validateDays(typedArgs.days);
+					const endDate = new Date();
+					const startDate = new Date();
+					startDate.setDate(startDate.getDate() - days);
+					const workouts = db.getWorkoutsByDateRange(startDate.toISOString(), endDate.toISOString());
+
+					if (workouts.length === 0) {
+						return { content: [{ type: 'text', text: 'No workout data available for the requested period. If you logged a workout on your Whoop strap or app, try sync_data first.' }] };
+					}
+
+					let response = `# Workouts (Last ${days} Days)\n\n`;
+					response += '| Date | Sport | Duration | Avg HR | Max HR | Strain | Calories |\n|------|-------|----------|--------|--------|--------|----------|\n';
+
+					for (const w of workouts) {
+						const durationMs = new Date(w.end_time).getTime() - new Date(w.start_time).getTime();
+						const calories = w.kilojoule ? Math.round(w.kilojoule / 4.184) : null;
+						response += `| ${formatDate(w.start_time)} | ${getSportName(w.sport_id)} | ${formatDuration(durationMs)} | ${w.avg_hr ?? 'N/A'} bpm | ${w.max_hr ?? 'N/A'} bpm | ${w.strain?.toFixed(1) ?? 'N/A'} | ${calories ?? 'N/A'} kcal |\n`;
+					}
+
+					response += '\nHinweis: Der Strain-Wert misst kardiovaskulaere Belastung (Puls ueber Zeit) und unterschaetzt strukturell die Belastung von Krafttraining, da Pausen zwischen Saetzen den Puls senken. Ein niedriger Strain-Wert bei Krafttraining ist normal und kein Zeichen von zu wenig Intensitaet.';
 
 					return { content: [{ type: 'text', text: response }] };
 				}
