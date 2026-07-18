@@ -85,7 +85,7 @@ const SPORT_NAMES: Record<number, string> = {
 	44: 'Yoga', 45: 'Weightlifting', 48: 'Functional Fitness', 52: 'Hiking/Rucking',
 	56: 'Martial Arts', 59: 'Powerlifting', 63: 'Walking', 65: 'Elliptical',
 	84: 'Jumping Rope', 96: 'HIIT', 97: 'Spin', 123: 'Strength Trainer',
-	126: 'Assault Bike', 128: 'Stretching', -1: 'Activity',
+	126: 'Assault Bike', 128: 'Stretching', '-1': 'Activity',
 };
 
 function getSportName(sportId: number): string {
