@@ -511,6 +511,39 @@ strainTrends,
 });
 });
 
+app.options('/api/checklist', (_req: Request, res: Response) => {
+res.header('Access-Control-Allow-Origin', '*');
+res.header('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+res.header('Access-Control-Allow-Headers', 'Content-Type');
+res.sendStatus(204);
+});
+
+app.get('/api/checklist', (req: Request, res: Response) => {
+res.header('Access-Control-Allow-Origin', '*');
+if (APP_API_KEY && req.query.key !== APP_API_KEY) {
+res.status(401).json({ error: 'unauthorized' });
+return;
+}
+const date = (req.query.date as string) ?? new Date().toISOString().slice(0, 10);
+const state = db.getChecklist(date);
+res.json({ date, state });
+});
+
+app.post('/api/checklist', (req: Request, res: Response) => {
+res.header('Access-Control-Allow-Origin', '*');
+if (APP_API_KEY && req.query.key !== APP_API_KEY) {
+res.status(401).json({ error: 'unauthorized' });
+return;
+}
+const { date, taskId, done } = req.body ?? {};
+if (!date || !taskId || typeof done !== 'boolean') {
+res.status(400).json({ error: 'date, taskId, done required' });
+return;
+}
+db.setChecklistItem(date, taskId, done);
+res.json({ ok: true });
+});
+
 const server = app.listen(config.port, '0.0.0.0', () => {
 			process.stdout.write(`Whoop MCP server running on http://0.0.0.0:${config.port}\n`);
 		});
