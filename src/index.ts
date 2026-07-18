@@ -561,14 +561,56 @@ if (APP_API_KEY && req.query.key !== APP_API_KEY) {
 res.status(401).json({ error: 'unauthorized' });
 return;
 }
-const { date, alcohol, caffeineCount, mood, stress, notes } = req.body ?? {};
+const { date, alcohol, alcoholLastTime, caffeineCount, caffeineLastTime, sauna, coldExposure, lateMeal, screenTime, meditation, stretching, nap, sick, travel, mood, stress, notes } = req.body ?? {};
 if (!date) {
 res.status(400).json({ error: 'date required' });
 return;
 }
-db.saveJournal(date, { alcohol, caffeineCount, mood, stress, notes });
-res.json({ ok: true });
+db.saveJournal(date, {
+	        alcohol,
+	        alcoholLastTime,
+	        caffeineCount,
+	        caffeineLastTime,
+	        sauna,
+	        coldExposure,
+	        lateMeal,
+	        screenTime,
+	        meditation,
+	        stretching,
+	        nap,
+	        sick,
+	        travel,
+	        mood,
+	        stress,
+	        notes,
 });
+	    res.json({ ok: true });
+});
+
+		app.get('/api/journal-settings', (req: Request, res: Response) => {
+			    res.header('Access-Control-Allow-Origin', '*');
+			    if (APP_API_KEY && req.query.key !== APP_API_KEY) {
+					        res.status(401).json({ error: 'unauthorized' });
+					        return;
+				}
+			    const enabledFields = db.getJournalSettings();
+			    res.json({ enabledFields });
+		});
+
+		app.post('/api/journal-settings', (req: Request, res: Response) => {
+			    res.header('Access-Control-Allow-Origin', '*');
+			    if (APP_API_KEY && req.query.key !== APP_API_KEY) {
+					        res.status(401).json({ error: 'unauthorized' });
+					        return;
+				}
+			    const { enabledFields } = req.body ?? {};
+			    if (!Array.isArray(enabledFields)) {
+					        res.status(400).json({ error: 'enabledFields array required' });
+					        return;
+				}
+			    db.saveJournalSettings(enabledFields);
+			    res.json({ ok: true });
+		});
 
 const server = app.listen(config.port, '0.0.0.0', () => {
 			process.stdout.write(`Whoop MCP server running on http://0.0.0.0:${config.port}\n`);
