@@ -453,7 +453,65 @@ async function main(): Promise<void> {
 			res.status(410).send('SSE endpoint deprecated. Use /mcp with Streamable HTTP transport.');
 		});
 
-		const server = app.listen(config.port, '0.0.0.0', () => {
+		const APP_API_KEY = process.env.APP_API_KEY ?? '';
+
+app.get('/api/dashboard', async (req: Request, res: Response) => {
+res.header('Access-Control-Allow-Origin', '*');
+if (APP_API_KEY && req.query.key !== APP_API_KEY) {
+res.status(401).json({ error: 'unauthorized' });
+return;
+}
+
+const tokens = db.getTokens();
+if (!tokens) {
+res.status(200).json({ authenticated: false });
+return;
+}
+client.setTokens(tokens);
+try {
+await sync.smartSync();
+} catch {
+// continue with cached data
+}
+
+const recovery = db.getLatestRecovery();
+const sleep = db.getLatestSleep();
+const cycle = db.getLatestCycle();
+const recoveryTrends = db.getRecoveryTrends(7);
+const sleepTrends = db.getSleepTrends(7);
+const strainTrends = db.getStrainTrends(7);
+
+res.json({
+authenticated: true,
+recovery: recovery ? {
+score: recovery.recovery_score,
+hrv: recovery.hrv_rmssd,
+restingHr: recovery.resting_hr,
+spo2: recovery.spo2,
+skinTemp: recovery.skin_temp,
+} : null,
+sleep: sleep ? {
+totalSleepMilli: (sleep.total_in_bed_milli ?? 0) - (sleep.total_awake_milli ?? 0),
+performance: sleep.sleep_performance,
+efficiency: sleep.sleep_efficiency,
+lightMilli: sleep.total_light_milli,
+deepMilli: sleep.total_deep_milli,
+remMilli: sleep.total_rem_milli,
+respiratoryRate: sleep.respiratory_rate,
+} : null,
+cycle: cycle ? {
+strain: cycle.strain,
+kilojoule: cycle.kilojoule,
+avgHr: cycle.avg_hr,
+maxHr: cycle.max_hr,
+} : null,
+recoveryTrends,
+sleepTrends,
+strainTrends,
+});
+});
+
+const server = app.listen(config.port, '0.0.0.0', () => {
 			process.stdout.write(`Whoop MCP server running on http://0.0.0.0:${config.port}\n`);
 		});
 
