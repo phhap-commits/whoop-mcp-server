@@ -479,19 +479,82 @@ const row = this.db.prepare('SELECT * FROM journal WHERE date = ?').get(date);
 return (row as Record<string, unknown>) ?? null;
 }
 
-saveJournal(date: string, entry: { alcohol?: number | null; caffeineCount?: number | null; mood?: number | null; stress?: number | null; notes?: string | null }): void {
-this.db.prepare(`
-INSERT INTO journal (date, alcohol, caffeine_count, mood, stress, notes, updated_at)
-VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-ON CONFLICT(date) DO UPDATE SET
-alcohol = excluded.alcohol,
-caffeine_count = excluded.caffeine_count,
-mood = excluded.mood,
-stress = excluded.stress,
-notes = excluded.notes,
-updated_at = CURRENT_TIMESTAMP
-`).run(date, entry.alcohol ?? null, entry.caffeineCount ?? null, entry.mood ?? null, entry.stress ?? null, entry.notes ?? null);
+saveJournal(date: string, entry: {
+	        alcohol?: number | null;
+	        alcoholLastTime?: string | null;
+	        caffeineCount?: number | null;
+	        caffeineLastTime?: string | null;
+	        sauna?: number | null;
+	        coldExposure?: number | null;
+	        lateMeal?: number | null;
+	        screenTime?: number | null;
+	        meditation?: number | null;
+	        stretching?: number | null;
+	        nap?: number | null;
+	        sick?: number | null;
+	        travel?: number | null;
+	        mood?: number | null;
+	        stress?: number | null;
+	        notes?: string | null;
+}): void {
+	        this.db.prepare(`
+			            INSERT INTO journal (date, alcohol, alcohol_last_time, caffeine_count, caffeine_last_time, sauna, cold_exposure, late_meal, screen_time, meditation, stretching, nap, sick, travel, mood, stress, notes, updated_at)
+						            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+									            ON CONFLICT(date) DO UPDATE SET
+												            alcohol = excluded.alcohol,
+															            alcohol_last_time = excluded.alcohol_last_time,
+																		            caffeine_count = excluded.caffeine_count,
+																					            caffeine_last_time = excluded.caffeine_last_time,
+																								            sauna = excluded.sauna,
+																											            cold_exposure = excluded.cold_exposure,
+																														            late_meal = excluded.late_meal,
+																																	            screen_time = excluded.screen_time,
+																																				            meditation = excluded.meditation,
+																																							            stretching = excluded.stretching,
+																																										            nap = excluded.nap,
+																																													            sick = excluded.sick,
+																																																            travel = excluded.travel,
+																																																			            mood = excluded.mood,
+																																																						            stress = excluded.stress,
+																																																									            notes = excluded.notes,
+																																																												            updated_at = CURRENT_TIMESTAMP
+																																																															        `).run(
+				            date,
+				            entry.alcohol ?? null,
+				            entry.alcoholLastTime ?? null,
+				            entry.caffeineCount ?? null,
+				            entry.caffeineLastTime ?? null,
+				            entry.sauna ?? null,
+				            entry.coldExposure ?? null,
+				            entry.lateMeal ?? null,
+				            entry.screenTime ?? null,
+				            entry.meditation ?? null,
+				            entry.stretching ?? null,
+				            entry.nap ?? null,
+				            entry.sick ?? null,
+				            entry.travel ?? null,
+				            entry.mood ?? null,
+				            entry.stress ?? null,
+				            entry.notes ?? null
+				        );
 }
+
+	    getJournalSettings(): string[] {
+			        const row = this.db.prepare(`SELECT enabled_fields FROM journal_settings WHERE id = 'default'`).get() as { enabled_fields: string } | undefined;
+			        if (!row) return [];
+			        try {
+						            return JSON.parse(row.enabled_fields);
+					} catch (e) {
+						            return [];
+					}
+		}
+
+	    saveJournalSettings(enabledFields: string[]): void {
+			        this.db.prepare(`
+					            INSERT INTO journal_settings (id, enabled_fields) VALUES ('default', ?)
+								            ON CONFLICT(id) DO UPDATE SET enabled_fields = excluded.enabled_fields
+											        `).run(JSON.stringify(enabledFields));
+		}
 
 close(): void {
 		this.db.close();
