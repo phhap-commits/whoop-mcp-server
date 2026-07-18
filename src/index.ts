@@ -544,6 +544,32 @@ db.setChecklistItem(date, taskId, done);
 res.json({ ok: true });
 });
 
+app.get('/api/journal', (req: Request, res: Response) => {
+res.header('Access-Control-Allow-Origin', '*');
+if (APP_API_KEY && req.query.key !== APP_API_KEY) {
+res.status(401).json({ error: 'unauthorized' });
+return;
+}
+const date = (req.query.date as string) ?? new Date().toISOString().slice(0, 10);
+const entry = db.getJournal(date);
+res.json({ date, entry });
+});
+
+app.post('/api/journal', (req: Request, res: Response) => {
+res.header('Access-Control-Allow-Origin', '*');
+if (APP_API_KEY && req.query.key !== APP_API_KEY) {
+res.status(401).json({ error: 'unauthorized' });
+return;
+}
+const { date, alcohol, caffeineCount, mood, stress, notes } = req.body ?? {};
+if (!date) {
+res.status(400).json({ error: 'date required' });
+return;
+}
+db.saveJournal(date, { alcohol, caffeineCount, mood, stress, notes });
+res.json({ ok: true });
+});
+
 const server = app.listen(config.port, '0.0.0.0', () => {
 			process.stdout.write(`Whoop MCP server running on http://0.0.0.0:${config.port}\n`);
 		});
