@@ -156,6 +156,16 @@ updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
 PRIMARY KEY (date, task_id)
 );
 
+CREATE TABLE IF NOT EXISTS journal (
+date TEXT PRIMARY KEY,
+alcohol INTEGER,
+caffeine_count INTEGER,
+mood INTEGER,
+stress INTEGER,
+notes TEXT,
+updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
 INSERT OR IGNORE INTO sync_state (id) VALUES (1);
 		`);
 	}
@@ -418,6 +428,25 @@ INSERT INTO checklist (date, task_id, done, updated_at)
 VALUES (?, ?, ?, CURRENT_TIMESTAMP)
 ON CONFLICT(date, task_id) DO UPDATE SET done = excluded.done, updated_at = CURRENT_TIMESTAMP
 `).run(date, taskId, done ? 1 : 0);
+}
+
+getJournal(date: string): Record<string, unknown> | null {
+const row = this.db.prepare('SELECT * FROM journal WHERE date = ?').get(date);
+return (row as Record<string, unknown>) ?? null;
+}
+
+saveJournal(date: string, entry: { alcohol?: number | null; caffeineCount?: number | null; mood?: number | null; stress?: number | null; notes?: string | null }): void {
+this.db.prepare(`
+INSERT INTO journal (date, alcohol, caffeine_count, mood, stress, notes, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+ON CONFLICT(date) DO UPDATE SET
+alcohol = excluded.alcohol,
+caffeine_count = excluded.caffeine_count,
+mood = excluded.mood,
+stress = excluded.stress,
+notes = excluded.notes,
+updated_at = CURRENT_TIMESTAMP
+`).run(date, entry.alcohol ?? null, entry.caffeineCount ?? null, entry.mood ?? null, entry.stress ?? null, entry.notes ?? null);
 }
 
 close(): void {
