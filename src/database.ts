@@ -157,14 +157,30 @@ PRIMARY KEY (date, task_id)
 );
 
 CREATE TABLE IF NOT EXISTS journal (
-date TEXT PRIMARY KEY,
-alcohol INTEGER,
-caffeine_count INTEGER,
-mood INTEGER,
-stress INTEGER,
-notes TEXT,
-updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-);
+    date TEXT PRIMARY KEY,
+	    alcohol INTEGER,
+		    alcohol_last_time TEXT,
+			    caffeine_count INTEGER,
+				    caffeine_last_time TEXT,
+					    sauna INTEGER,
+						    cold_exposure INTEGER,
+							    late_meal INTEGER,
+								    screen_time INTEGER,
+									    meditation INTEGER,
+										    stretching INTEGER,
+											    nap INTEGER,
+												    sick INTEGER,
+													    travel INTEGER,
+														    mood INTEGER,
+															    stress INTEGER,
+																    notes TEXT,
+																	    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+																		);
+
+																		CREATE TABLE IF NOT EXISTS journal_settings (
+																		    id TEXT PRIMARY KEY,
+																			    enabled_fields TEXT
+																				);
 
 INSERT OR IGNORE INTO sync_state (id) VALUES (1);
 		`);
