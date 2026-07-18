@@ -148,7 +148,15 @@ export class WhoopDatabase {
 			CREATE INDEX IF NOT EXISTS idx_sleep_start ON sleep(start_time);
 			CREATE INDEX IF NOT EXISTS idx_workouts_start ON workouts(start_time);
 
-			INSERT OR IGNORE INTO sync_state (id) VALUES (1);
+			CREATE TABLE IF NOT EXISTS checklist (
+date TEXT NOT NULL,
+task_id TEXT NOT NULL,
+done INTEGER NOT NULL DEFAULT 0,
+updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+PRIMARY KEY (date, task_id)
+);
+
+INSERT OR IGNORE INTO sync_state (id) VALUES (1);
 		`);
 	}
 
@@ -397,7 +405,22 @@ export class WhoopDatabase {
 		`).all(days) as StrainTrendRow[];
 	}
 
-	close(): void {
+	getChecklist(date: string): Record<string, boolean> {
+const rows = this.db.prepare('SELECT task_id, done FROM checklist WHERE date = ?').all(date) as { task_id: string; done: number }[];
+const result: Record<string, boolean> = {};
+for (const row of rows) result[row.task_id] = Boolean(row.done);
+return result;
+}
+
+setChecklistItem(date: string, taskId: string, done: boolean): void {
+this.db.prepare(`
+INSERT INTO checklist (date, task_id, done, updated_at)
+VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+ON CONFLICT(date, task_id) DO UPDATE SET done = excluded.done, updated_at = CURRENT_TIMESTAMP
+`).run(date, taskId, done ? 1 : 0);
+}
+
+close(): void {
 		this.db.close();
 	}
 }
