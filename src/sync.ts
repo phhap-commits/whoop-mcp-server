@@ -2,88 +2,94 @@ import { WhoopClient } from './whoop-client.js';
 import { WhoopDatabase } from './database.js';
 
 interface SyncStats {
-	cycles: number;
-	recoveries: number;
-	sleeps: number;
-	workouts: number;
+  cycles: number;
+  recoveries: number;
+  sleeps: number;
+  workouts: number;
 }
 
 interface SmartSyncResult {
-	type: 'full' | 'quick' | 'skip';
-	stats?: SyncStats;
+  type: 'full' | 'quick' | 'skip';
+  stats?: SyncStats;
 }
 
 export class WhoopSync {
-	private readonly client: WhoopClient;
-	private readonly db: WhoopDatabase;
+  private readonly client: WhoopClient;
+  private readonly db: WhoopDatabase;
+  private readonly customerId: string | null;
 
-	constructor(client: WhoopClient, db: WhoopDatabase) {
-		this.client = client;
-		this.db = db;
-	}
+  constructor(client: WhoopClient, db: WhoopDatabase, customerId: string | null = null) {
+    this.client = client;
+    this.db = db;
+    this.customerId = customerId;
+  }
 
-	async syncDays(days = 90): Promise<SyncStats> {
-		const endDate = new Date();
-		const startDate = new Date();
-		startDate.setDate(startDate.getDate() - days);
+  async syncDays(days = 90): Promise<SyncStats> {
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
 
-		const start = startDate.toISOString();
-		const end = endDate.toISOString();
+    const start = startDate.toISOString();
+    const end = endDate.toISOString();
 
-		const [cycles, recoveries, sleeps, workouts] = await Promise.all([
-			this.client.getAllCycles({ start, end }),
-			this.client.getAllRecoveries({ start, end }),
-			this.client.getAllSleeps({ start, end }),
-			this.client.getAllWorkouts({ start, end }),
-		]);
+    const [cycles, recoveries, sleeps, workouts] = await Promise.all([
+      this.client.getAllCycles({ start, end }),
+      this.client.getAllRecoveries({ start, end }),
+      this.client.getAllSleeps({ start, end }),
+      this.client.getAllWorkouts({ start, end }),
+    ]);
 
-		if (cycles.length > 0) this.db.upsertCycles(cycles);
-		if (recoveries.length > 0) this.db.upsertRecoveries(recoveries);
-		if (sleeps.length > 0) this.db.upsertSleeps(sleeps);
-		if (workouts.length > 0) this.db.upsertWorkouts(workouts);
+    if (cycles.length > 0) this.db.upsertCycles(cycles, this.customerId);
+    if (recoveries.length > 0) this.db.upsertRecoveries(recoveries, this.customerId);
+    if (sleeps.length > 0) this.db.upsertSleeps(sleeps, this.customerId);
+    if (workouts.length > 0) this.db.upsertWorkouts(workouts, this.customerId);
 
-		this.db.updateSyncState(
-			startDate.toISOString().split('T')[0],
-			endDate.toISOString().split('T')[0]
-		);
+    const oldest = startDate.toISOString().split('T')[0];
+    const newest = endDate.toISOString().split('T')[0];
 
-		return {
-			cycles: cycles.length,
-			recoveries: recoveries.length,
-			sleeps: sleeps.length,
-			workouts: workouts.length,
-		};
-	}
+    if (this.customerId) {
+      this.db.updateCustomerSyncState(this.customerId, oldest, newest);
+    } else {
+      this.db.updateSyncState(oldest, newest);
+    }
 
-	async quickSync(): Promise<SyncStats> {
-		return this.syncDays(7);
-	}
+    return {
+      cycles: cycles.length,
+      recoveries: recoveries.length,
+      sleeps: sleeps.length,
+      workouts: workouts.length,
+    };
+  }
 
-	needsFullSync(): boolean {
-		const state = this.db.getSyncState();
-		if (!state.lastSyncAt) return true;
+  async quickSync(): Promise<SyncStats> {
+    return this.syncDays(7);
+  }
 
-		const lastSync = new Date(state.lastSyncAt);
-		const hoursSinceSync = (Date.now() - lastSync.getTime()) / (1000 * 60 * 60);
-		return hoursSinceSync > 24;
-	}
+  needsFullSync(): boolean {
+    const state = this.customerId ? this.db.getCustomerSyncState(this.customerId) : this.db.getSyncState();
+    if (!state.lastSyncAt) return true;
 
-	async smartSync(): Promise<SmartSyncResult> {
-		const state = this.db.getSyncState();
+    const lastSync = new Date(state.lastSyncAt);
+    const hoursSinceSync = (Date.now() - lastSync.getTime()) / (1000 * 60 * 60);
+    return hoursSinceSync > 24;
+  }
 
-		if (!state.lastSyncAt) {
-			const stats = await this.syncDays(90);
-			return { type: 'full', stats };
-		}
+  async smartSync(): Promise<SmartSyncResult> {
+    const state = this.customerId ? this.db.getCustomerSyncState(this.customerId) : this.db.getSyncState();
 
-		const lastSync = new Date(state.lastSyncAt);
-		const hoursSinceSync = (Date.now() - lastSync.getTime()) / (1000 * 60 * 60);
+    if (!state.lastSyncAt) {
+      const stats = await this.syncDays(90);
+      return { type: 'full', stats };
+    }
 
-		if (hoursSinceSync < 1) {
-			return { type: 'skip' };
-		}
+    const lastSync = new Date(state.lastSyncAt);
+    const hoursSinceSync = (Date.now() - lastSync.getTime()) / (1000 * 60 * 60);
 
-		const stats = await this.quickSync();
-		return { type: 'quick', stats };
-	}
+    if (hoursSinceSync < 1) {
+      return { type: 'skip' };
+    }
+
+    const stats = await this.quickSync();
+    return { type: 'quick', stats };
+  }
 }
