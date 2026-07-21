@@ -680,9 +680,10 @@ async function main(): Promise<void> {
       const recovery = db.getLatestRecovery(customerId);
       const sleep = db.getLatestSleep(customerId);
       const cycle = db.getLatestCycle(customerId);
-      const recoveryTrends = db.getRecoveryTrends(7, customerId);
-      const sleepTrends = db.getSleepTrends(7, customerId);
-      const strainTrends = db.getStrainTrends(7, customerId);
+      const trendDays = validateDays(req.query.days);
+      const recoveryTrends = db.getRecoveryTrends(trendDays, customerId);
+      const sleepTrends = db.getSleepTrends(trendDays, customerId);
+      const strainTrends = db.getStrainTrends(trendDays, customerId);
 
       res.json({
         authenticated: true,
@@ -848,7 +849,32 @@ async function main(): Promise<void> {
       db.saveJournalSettings(enabledFields, scope.customerId);
       res.json({ ok: true });
     });
-
+    app.get('/api/day', async (req: Request, res: Response) => {
+            res.header('Access-Control-Allow-Origin', '*');
+            const scope = resolveScopeOrNull(req);
+            if (!scope.ok) {
+                      res.status(401).json({ error: 'unauthorized' });
+                      return;
+            }
+            const date = (req.query.date as string) ?? new Date().toISOString().slice(0, 10);
+            const startDate = `${date}T00:00:00.000Z`;
+            const endDate = `${date}T23:59:59.999Z`;
+            const recoveries = db.getRecoveriesByDateRange(startDate, endDate, scope.customerId);
+            const sleeps = db.getSleepsByDateRange(startDate, endDate, false, scope.customerId);
+            const cycles = db.getCyclesByDateRange(startDate, endDate, scope.customerId);
+            const recovery = recoveries[0] ?? null;
+            const sleep = sleeps[0] ?? null;
+            const cycle = cycles[0] ?? null;
+            const entry = db.getJournal(date, scope.customerId);
+            res.json({
+                      date,
+                      recovery: recovery ? { score: recovery.recovery_score, hrv: recovery.hrv_rmssd, restingHr: recovery.resting_hr } : null,
+                      sleep: sleep ? { totalSleepMilli: (sleep.total_in_bed_milli ?? 0) - (sleep.total_awake_milli ?? 0), performance: sleep.sleep_performance, efficiency: sleep.sleep_efficiency } : null,
+                      cycle: cycle ? { strain: cycle.strain, kilojoule: cycle.kilojoule, avgHr: cycle.avg_hr, maxHr: cycle.max_hr } : null,
+                      journal: entry,
+            });
+    });
+    
     const server = app.listen(config.port, '0.0.0.0', () => {
       process.stdout.write(`Whoop MCP server running on http://0.0.0.0:${config.port}\n`);
     });
